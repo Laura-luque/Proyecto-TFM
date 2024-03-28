@@ -1,0 +1,129 @@
+!pip install tensorflow
+!pip install keras
+!pip install numpy
+
+# Cargamos las distintas librerías que se utilizaran
+
+from keras.preprocessing.image import ImageDataGenerator
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D
+from keras.layers import Activation, Dropout, Flatten, Dense
+from keras import backend as K
+import pandas as pd
+import numpy as np
+from keras.preprocessing import image
+import tensorflow as tf
+
+# Anotamos las dimensiones de nuestras imágenes
+
+img_width, img_height = 512, 512
+
+# Se cargan las imágenes desde la carpeta donde se encuentran
+
+train_data_dir = './drive/MyDrive/data/entrenamiento'
+validation_data_dir = './drive/MyDrive/data/validación'
+
+# Se guardan los parámetros que se usarán más adelante
+nb_train_samples = 2145
+nb_validation_samples = 919
+epochs = 50
+batch_size = 16
+
+# Se procesan las imágenes modificando el tamaño de las mismas
+
+if K.image_data_format() == 'channels_first':
+    input_shape = (3, img_width, img_height)
+else:
+    input_shape = (img_width, img_height, 3)
+
+train_datagen = ImageDataGenerator(
+    rescale=1. / 255,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True)
+
+test_datagen = ImageDataGenerator(rescale=1. / 255)
+
+train_generator = train_datagen.flow_from_directory(
+    train_data_dir, # de donde vienen los datos
+    target_size=(img_width, img_height), # tamaño al que se cambiarán 
+      # las imágenes tras ser cargadas del disco
+    batch_size=batch_size, # lotes en los que se cargaran las imágenes
+    class_mode='categorical')
+
+# Se generan los datos de validación con estructura similar a los de entreno
+
+validation_generator = test_datagen.flow_from_directory(
+    validation_data_dir,
+    target_size=(img_width, img_height),
+    batch_size=batch_size,
+    class_mode='categorical')
+
+# Se crean varias capas de convolución y agrupación de la red. 
+# A esto le sigue la capa plana cuyos resultados se pasan a la capa densa . 
+# La capa final tiene 3 unidades porque el conjunto de datos tiene 3 clases. 
+# Dado que es un problema multiclase, se aplica la 
+# función de activación de Softmax.
+# En este proceso, se descarta un porcentaje específico de conexiones 
+#durante el proceso de formación. 
+#Esto obliga a la red a aprender patrones de los datos en lugar de memorizarlos. 
+#Esto es lo que reduce el sobreajuste. 
+#En Keras, esto se puede lograr mediante la introducción de una capa de 
+#abandono en la red. Así es como se vería la red después de 
+#aplicar la capa DropOut.
+
+model = Sequential()
+model.add(Conv2D(32, (3, 3), input_shape=input_shape))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(32, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Conv2D(64, (3, 3)))
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2, 2)))
+
+model.add(Flatten())
+model.add(Dense(64))
+model.add(Activation('relu'))
+model.add(Dropout(0.5))
+model.add(Dense(3))
+model.add(Activation('softmax'))
+
+# Vemos un resumen del modelo
+
+model.summary()
+
+
+# Compilación del modelo.
+# El siguiente paso es compilar el modelo. 
+#La pérdida de entropía categorical_crossentropy se 
+#utiliza porque las etiquetas no están codificadas en un solo uso.
+ 
+model.compile(loss='categorical_crossentropy',
+              optimizer='rmsprop',
+              metrics=['accuracy'])
+
+# Entrenamiento del modelo con la función fit
+
+model.fit(
+    train_generator,
+    steps_per_epoch=nb_train_samples // batch_size,
+    epochs=epochs,
+    validation_data=validation_generator,
+    validation_steps=nb_validation_samples // batch_size)
+
+# Evaluación del modelo mediante la función evaluate
+
+loss, accuracy = model.evaluate(validation_generator)
+print('Accuracy on test dataset:', accuracy)
+
+# Guardamos el modelo para poderlo usar en un futuro sin necesidad
+# de volverlo a entrenar
+
+dir= './drive/MyDrive/data/modelo/'
+
+model.save('./drive/MyDrive/data/modelo/modelo.h5')
+model.save_weights('./drive/MyDrive/data/modelo/pesos.h5')
